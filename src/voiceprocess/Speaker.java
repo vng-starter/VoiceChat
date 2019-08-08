@@ -5,37 +5,60 @@
  */
 package voiceprocess;
 
+import java.nio.ByteBuffer;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.SourceDataLine;
-import static voiceprocess.VoiceProcess.getAudioFormat;
 
 /**
  *
  * @author TBN
  */
 public class Speaker extends Thread {
+
+    static byte[] tempBuffer;
+
     @Override
     public void run() {
-            DataLine.Info dataLineInfo = new DataLine.Info(SourceDataLine.class, VoiceProcess.getAudioFormat());            
-            while (true) {
-                //if (VoiceProcess.tempBuffer != null) {
-                try {
-                    SourceDataLine sourceDataLine = (SourceDataLine) AudioSystem.getLine(dataLineInfo);
-                    sourceDataLine.open(getAudioFormat());
-                    sourceDataLine.start();
-                    VoiceProcess.tempBuffer = new byte[VoiceProcess.line.getBufferSize()];
-                    VoiceProcess.line.read(VoiceProcess.tempBuffer, 0, VoiceProcess.tempBuffer.length);
-                    System.out.println(VoiceProcess.tempBuffer[0]);
-                    sourceDataLine.write(VoiceProcess.tempBuffer, 0, VoiceProcess.tempBuffer.length);
-                    sourceDataLine.drain();
+        DataLine.Info dataLineInfo = new DataLine.Info(SourceDataLine.class, VoiceProcess.getAudioFormat());
+        while (true) {
+            //if (tempBuffer != null) {
+            try {
+                SourceDataLine sourceDataLine = (SourceDataLine) AudioSystem.getLine(dataLineInfo);
+                sourceDataLine.open(VoiceProcess.getAudioFormat());
+                sourceDataLine.start();
+                tempBuffer = new byte[VoiceProcess.line.getBufferSize()];
+                VoiceProcess.line.read(tempBuffer, 0, tempBuffer.length);
 
-                } catch (Exception e) {
-                    System.out.println(e.getMessage());
-                }
-                //}
+                AutocorrellatedVoiceActivityDetector avd = new AutocorrellatedVoiceActivityDetector();
+                byte[] voiceOut = avd.removeSilence(tempBuffer, VoiceProcess.SAMPLE_RATE);
+                sourceDataLine.write(voiceOut, 0, voiceOut.length);
+                sourceDataLine.drain();
+
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
             }
-        
+            //}
+        }
+
+    }
+
+    public static byte[] toByteArray(double[] doubleArray) {
+        int times = Double.SIZE / Byte.SIZE;
+        byte[] bytes = new byte[doubleArray.length * times];
+        for (int i = 0; i < doubleArray.length; i++) {
+            ByteBuffer.wrap(bytes, i * times, times).putDouble(doubleArray[i]);
+        }
+        return bytes;
+    }
+
+    public static double[] toDoubleArray(byte[] byteArray) {
+        int times = Double.SIZE / Byte.SIZE;
+        double[] doubles = new double[byteArray.length / times];
+        for (int i = 0; i < doubles.length; i++) {
+           doubles[i] = ByteBuffer.wrap(byteArray, i * times, times).getDouble();
+        }
+        return doubles;
     }
 
 }
